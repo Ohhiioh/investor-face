@@ -72,13 +72,14 @@
             };
 
             const analyze = async (base64Data) => {
-                if (!API_KEY) {
+                if (!API_KEY || API_KEY.trim() === "") {
                     setError("ยังไม่ได้ใส่ API Key ในโค้ด (บรรทัดที่ 46)");
                     setStep('welcome');
                     return;
                 }
                 
                 setStep('loading');
+                setError(null);
                 const base64Content = base64Data.split(',')[1];
                 
                 const prompt = `วิเคราะห์ใบหน้าตามหลักโหงวเฮ้งและเชื่อมโยงกับการลงทุน (Investment Style) 
@@ -87,6 +88,7 @@
                 ตอบเป็น JSON เท่านั้น: { "traits": "ลักษณะใบหน้าสั้นๆ", "category": "KEY", "explanation": "คำอธิบายเชิงโหงวเฮ้งและการลงทุนในภาษาไทย" }`;
 
                 try {
+                    // ใช้ gemini-2.5-flash-preview หรือ gemini-1.5-flash หากติดลิมิต
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -96,13 +98,19 @@
                     });
                     
                     const result = await res.json();
+
+                    if (!res.ok) {
+                        const errorMsg = result.error?.message || "Unknown API Error";
+                        throw new Error(`API Error: ${errorMsg}`);
+                    }
+
                     const text = result.candidates[0].content.parts[0].text;
                     const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
                     setAnalysis(JSON.parse(cleanJson));
                     setStep('result');
                 } catch (err) {
-                    console.error(err);
-                    setError("การวิเคราะห์ขัดข้อง อาจเป็นเพราะ API Key ไม่ถูกต้อง หรือสัญญาณเน็ต");
+                    console.error("Analysis Error:", err);
+                    setError(`พบปัญหา: ${err.message}`);
                     setStep('welcome');
                 }
             };
@@ -125,7 +133,12 @@
                                 <button onClick={startCamera} className="w-full bg-amber-500 text-slate-900 font-black py-4 rounded-2xl hover:scale-105 active:scale-95 transition">
                                     เริ่มวิเคราะห์วาสนา
                                 </button>
-                                {error && <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-xs font-bold">{error}</div>}
+                                {error && (
+                                    <div className="mt-4 p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-xs text-left overflow-auto max-h-32 font-mono">
+                                        <div className="font-black mb-1 uppercase">Error Details:</div>
+                                        {error}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -161,10 +174,10 @@
                                     <div className="absolute -inset-2 bg-amber-500/20 rounded-full animate-pulse"></div>
                                 </div>
                                 
-                                <div className={`p-6 rounded-3xl border-2 shadow-inner ${tribeData[analysis.category].border} ${tribeData[analysis.category].bg}`}>
+                                <div className={`p-6 rounded-3xl border-2 shadow-inner ${tribeData[analysis.category]?.border || 'border-slate-500'} ${tribeData[analysis.category]?.bg || 'bg-slate-500/10'}`}>
                                     <span className="text-[10px] font-black uppercase tracking-widest opacity-50">ผลการวิเคราะห์</span>
-                                    <h3 className={`text-2xl font-black mb-2 ${tribeData[analysis.category].textColor}`}>
-                                        {tribeData[analysis.category].title}
+                                    <h3 className={`text-2xl font-black mb-2 ${tribeData[analysis.category]?.textColor || 'text-white'}`}>
+                                        {tribeData[analysis.category]?.title || 'Unknown Style'}
                                     </h3>
                                     <div className="h-px bg-white/10 my-3"></div>
                                     <p className="text-[11px] text-slate-300 font-bold mb-3 italic">ลักษณะเด่น: {analysis.traits}</p>
